@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-81ff76c7d73378bb2865ae9fcda1ec216cc5b10d",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.9.1"
+  },
+  "userSourceNameMap": {
+    "contracts/Escrow.sol": "project/contracts/Escrow.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/Escrow.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.24;\r\n\r\n/// @title EscrowFactory - Uslovni escrow sa arbitražom\r\n/// @notice Omogućava kupcu da kreira i finansira escrow, potvrdi prijem,\r\n///         pokrene spor, i arbitru da razreši spor u korist jedne od strana.\r\ncontract EscrowFactory {\r\n    enum State { CREATED, FUNDED, IN_DISPUTE, RELEASED, REFUNDED, RESOLVED }\r\n\r\n    struct EscrowDeal {\r\n        address buyer;\r\n        address seller;\r\n        address arbiter;\r\n        uint256 amount;\r\n        State state;\r\n        uint256 createdAt;\r\n        uint256 updatedAt;\r\n    }\r\n\r\n    mapping(uint256 => EscrowDeal) public deals;\r\n    uint256 public dealCounter;\r\n\r\n    // --- Reentrancy guard (ručna implementacija, bez OpenZeppelin importa) ---\r\n    uint256 private constant NOT_ENTERED = 1;\r\n    uint256 private constant ENTERED = 2;\r\n    uint256 private locked = NOT_ENTERED;\r\n\r\n    modifier nonReentrant() {\r\n        require(locked == NOT_ENTERED, \"Reentrant call blocked\");\r\n        locked = ENTERED;\r\n        _;\r\n        locked = NOT_ENTERED;\r\n    }\r\n\r\n    // --- Eventi ---\r\n    event EscrowCreated(uint256 indexed dealId, address indexed buyer, address indexed seller, address arbiter, uint256 amount, uint256 timestamp);\r\n    event EscrowFunded(uint256 indexed dealId, uint256 amount, uint256 timestamp);\r\n    event DeliveryConfirmed(uint256 indexed dealId, uint256 timestamp);\r\n    event DisputeRaised(uint256 indexed dealId, address indexed raisedBy, uint256 timestamp);\r\n    event DisputeResolved(uint256 indexed dealId, address indexed winner, bool releasedToSeller, uint256 timestamp);\r\n    event Refunded(uint256 indexed dealId, uint256 timestamp);\r\n\r\n    // --- Modifikatori za kontrolu pristupa ---\r\n    modifier onlyBuyer(uint256 dealId) {\r\n        require(msg.sender == deals[dealId].buyer, \"Samo kupac moze ovo pozvati\");\r\n        _;\r\n    }\r\n\r\n    modifier onlyBuyerOrSeller(uint256 dealId) {\r\n        require(\r\n            msg.sender == deals[dealId].buyer || msg.sender == deals[dealId].seller,\r\n            \"Samo kupac ili prodavac mogu ovo pozvati\"\r\n        );\r\n        _;\r\n    }\r\n\r\n    modifier onlyArbiter(uint256 dealId) {\r\n        require(msg.sender == deals[dealId].arbiter, \"Samo arbitar moze ovo pozvati\");\r\n        _;\r\n    }\r\n\r\n    modifier inState(uint256 dealId, State expected) {\r\n        require(deals[dealId].state == expected, \"Neispravno stanje ugovora za ovu akciju\");\r\n        _;\r\n    }\r\n\r\n    modifier dealExists(uint256 dealId) {\r\n        require(dealId < dealCounter, \"Escrow ne postoji\");\r\n        _;\r\n    }\r\n\r\n    /// @notice Kreira i odmah finansira novi escrow. Kupac šalje ETH zajedno sa pozivom.\r\n    function createEscrow(address seller, address arbiter) external payable returns (uint256) {\r\n        require(msg.value > 0, \"Iznos mora biti veci od nule\");\r\n        require(seller != address(0) && arbiter != address(0), \"Nevalidna adresa\");\r\n        require(seller != msg.sender, \"Prodavac ne moze biti isti kao kupac\");\r\n        require(arbiter != msg.sender && arbiter != seller, \"Arbitar mora biti nezavisna treca strana\");\r\n\r\n        uint256 dealId = dealCounter;\r\n        dealCounter++;\r\n\r\n        deals[dealId] = EscrowDeal({\r\n            buyer: msg.sender,\r\n            seller: seller,\r\n            arbiter: arbiter,\r\n            amount: msg.value,\r\n            state: State.FUNDED,\r\n            createdAt: block.timestamp,\r\n            updatedAt: block.timestamp\r\n        });\r\n\r\n        emit EscrowCreated(dealId, msg.sender, seller, arbiter, msg.value, block.timestamp);\r\n        emit EscrowFunded(dealId, msg.value, block.timestamp);\r\n\r\n        return dealId;\r\n    }\r\n\r\n    /// @notice Kupac potvrđuje prijem robe/usluge — sredstva se oslobađaju prodavcu.\r\n    function confirmDelivery(uint256 dealId)\r\n        external\r\n        dealExists(dealId)\r\n        onlyBuyer(dealId)\r\n        inState(dealId, State.FUNDED)\r\n        nonReentrant\r\n    {\r\n        EscrowDeal storage deal = deals[dealId];\r\n        deal.state = State.RELEASED;\r\n        deal.updatedAt = block.timestamp;\r\n\r\n        uint256 amount = deal.amount;\r\n        (bool sent, ) = deal.seller.call{value: amount}(\"\");\r\n        require(sent, \"Transfer prodavcu neuspesan\");\r\n\r\n        emit DeliveryConfirmed(dealId, block.timestamp);\r\n    }\r\n\r\n    /// @notice Kupac ili prodavac pokreće spor.\r\n    function raiseDispute(uint256 dealId)\r\n        external\r\n        dealExists(dealId)\r\n        onlyBuyerOrSeller(dealId)\r\n        inState(dealId, State.FUNDED)\r\n    {\r\n        EscrowDeal storage deal = deals[dealId];\r\n        deal.state = State.IN_DISPUTE;\r\n        deal.updatedAt = block.timestamp;\r\n\r\n        emit DisputeRaised(dealId, msg.sender, block.timestamp);\r\n    }\r\n\r\n    /// @notice Arbitar razrešava spor — bira da li sredstva idu prodavcu ili se vraćaju kupcu.\r\n    function resolveDispute(uint256 dealId, bool releaseToSeller)\r\n        external\r\n        dealExists(dealId)\r\n        onlyArbiter(dealId)\r\n        inState(dealId, State.IN_DISPUTE)\r\n        nonReentrant\r\n    {\r\n        EscrowDeal storage deal = deals[dealId];\r\n        deal.state = State.RESOLVED;\r\n        deal.updatedAt = block.timestamp;\r\n\r\n        uint256 amount = deal.amount;\r\n        address winner = releaseToSeller ? deal.seller : deal.buyer;\r\n\r\n        (bool sent, ) = winner.call{value: amount}(\"\");\r\n        require(sent, \"Transfer neuspesan\");\r\n\r\n        emit DisputeResolved(dealId, winner, releaseToSeller, block.timestamp);\r\n    }\r\n\r\n    /// @notice Vraća pojedinosti o escrow-u (korisno za frontend).\r\n    function getDeal(uint256 dealId) external view dealExists(dealId) returns (EscrowDeal memory) {\r\n        return deals[dealId];\r\n    }\r\n\r\n    /// @notice Vraća ukupan broj kreiranih escrow-ova.\r\n    function getDealCount() external view returns (uint256) {\r\n        return dealCounter;\r\n    }\r\n}"
+      }
+    }
+  }
+}

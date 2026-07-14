@@ -1,0 +1,99 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #f4f4f8;
+}
+
+.container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  font-family: system-ui, sans-serif;
+  text-align: left;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  margin: 0.25rem 0.25rem 0.25rem 0;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary { background: #4f46e5; color: white; }
+.btn-secondary { background: #e5e7eb; color: #111; }
+.btn-success { background: #16a34a; color: white; }
+.btn-warning { background: #f59e0b; color: white; }
+.btn-danger { background: #dc2626; color: white; }
+
+.account-info {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  word-break: break-all;
+}
+
+.card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.card form label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.card form input {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-weight: normal;
+}
+
+.deal-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  word-break: break-all;
+  font-size: 0.9rem;
+}
+
+.actions {
+  margin-top: 0.75rem;
+}
+
+.warning {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.status-msg {
+  background: #eef2ff;
+  padding: 1rem;
+  border-radius: 8px;
+  word-break: break-all;
+  margin-top: 1rem;
+}
